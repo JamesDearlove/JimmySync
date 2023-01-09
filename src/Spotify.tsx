@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import SpotifyWebApi from "spotify-web-api-js";
+import { importToAM } from "./AppleMusic";
 
 const CLIENT_ID = "cb680aa9619149778ad60d575fdcb8c5";
 const REDIRECT_URI = "http://localhost:5173";
@@ -41,28 +42,78 @@ const Spotify = () => {
     )}`;
   };
 
-  const [playlists, setPlaylists] = useState<any[]>([]);
+  // Get playlists from logged in user
+  // const [playlists, setPlaylists] = useState<any[]>([]);
 
-  useEffect(() => {
-    const run = async () => {
-      const result = await spotifyApi.getUserPlaylists();
-      setPlaylists(result.items);
-    };
+  // useEffect(() => {
+  //   const run = async () => {
+  //     const result = await spotifyApi.getUserPlaylists();
+  //     setPlaylists(result.items);
+  //   };
 
-    if (loggedIn) {
-      run();
+  //   if (loggedIn) {
+  //     run();
+  //   }
+  // }, [loggedIn]);
+
+  const [playlistId, setPlaylistId] = useState("5GDX1Uq6Qt3LrIzwtHpXe4");
+
+  const [playlist, setPlaylist] = useState<SpotifyApi.SinglePlaylistResponse>();
+  const [allTracks, setAllTracks] = useState<SpotifyApi.PlaylistTrackObject[]>();
+
+  const getPlaylist = async () => {
+    // 5GDX1Uq6Qt3LrIzwtHpXe4
+    const result = await spotifyApi.getPlaylist(playlistId);
+    console.log(result);
+    setPlaylist(result);
+
+    const total = result?.tracks.total ?? 0;
+
+    const tracks = result?.tracks.items;
+    if (!tracks?.length) {
+      return;
     }
-  }, [loggedIn]);
+
+    while (tracks.length < total) {
+      const moreTracks = await spotifyApi.getPlaylistTracks(playlistId, {
+        limit: 100,
+        offset: tracks.length,
+      });
+      tracks.push(...moreTracks.items);
+    }
+
+    console.log(tracks);
+    setAllTracks(tracks);
+  };
+
+  const clickCopyAM = () => {
+    if (playlist) {
+      importToAM(playlist.name, playlist.description ?? "", allTracks ?? [])
+    }
+  }
+
 
   return (
     <>
-      <button onClick={loginClick}>Sign into Spotify</button>
+      <button onClick={loginClick}>{loggedIn && "✅"} Sign into Spotify</button>
       {loggedIn && (
-        <ul>
-          {playlists.map((playlist) => (
-            <li key={playlist.id}>{playlist.name}</li>
-          ))}
-        </ul>
+        <>
+          <div>
+            <input
+              value={playlistId}
+              onChange={(e) => setPlaylistId(e.target.value)}
+            />
+            <button onClick={getPlaylist}>Find</button>
+          </div>
+          {playlist && (
+            <div>
+              <h3>{playlist.name}</h3>
+              <p>{playlist.description}</p>
+              <p>Song Count: {allTracks?.length}</p>
+              <button onClick={clickCopyAM}>Copy to AM</button>
+            </div>
+          )}
+        </>
       )}
     </>
   );
